@@ -1,0 +1,82 @@
+1️⃣ Users Table (For All Roles)
+Stores login and profile details for Customers, Employees, and Managers.
+
+CREATE TABLE Users (
+    user_id        INT PRIMARY KEY AUTO_INCREMENT,
+    full_name      VARCHAR(255) NOT NULL,
+    email          VARCHAR(255) UNIQUE NOT NULL,
+    password_hash  VARCHAR(255) NOT NULL,
+    phone_number   VARCHAR(15) UNIQUE,
+    role           ENUM('user', 'employee', 'manager') NOT NULL, -- Role-based access
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE Accounts (
+    account_id     INT PRIMARY KEY AUTO_INCREMENT,
+    user_id        INT NOT NULL,
+    account_type   ENUM('savings', 'current', 'loan', 'fixed_deposit'),
+    balance        DECIMAL(15,2) DEFAULT 0.00,
+    currency       VARCHAR(5) DEFAULT 'INR',
+    status         ENUM('active', 'inactive', 'closed') DEFAULT 'active',
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+);
+
+
+CREATE TABLE Transactions (
+  transaction_id   INT PRIMARY KEY AUTO_INCREMENT,
+  user_id         INT NOT NULL,
+  from_account    VARCHAR(255) NULL, -- Nullable for deposits
+  to_account      VARCHAR(255) NULL, -- Nullable for withdrawals
+  biller_name     VARCHAR(255) NULL, -- Only for bill payments
+  bill_account_no VARCHAR(255) NULL, -- Account number for bill payments
+  loan_id         INT NULL,          -- Nullable, used for loan payments
+  amount          DECIMAL(15,2) NOT NULL,
+  transaction_type ENUM('deposit', 'withdrawal', 'transfer', 'bill_payment', 'loan_payment') NOT NULL,
+  payment_method  ENUM('cash', 'card', 'bank_transfer', 'mobile_wallet') NOT NULL,
+  status          ENUM('pending', 'successful', 'failed') DEFAULT 'pending',
+  created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+  -- Foreign Key Constraints
+  FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE,
+  FOREIGN KEY (loan_id) REFERENCES Loans(loan_id) ON DELETE CASCADE
+);
+
+
+CREATE TABLE Loans (
+    loan_id        INT PRIMARY KEY AUTO_INCREMENT,
+    user_id        INT NOT NULL,
+    loan_type      ENUM('personal', 'home', 'education', 'car'),
+    amount         DECIMAL(15,2) NOT NULL,
+    interest_rate  DECIMAL(5,2) NOT NULL,
+    tenure_months  INT NOT NULL,
+    status         ENUM('pending', 'approved', 'rejected', 'closed') DEFAULT 'pending',
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+);
+
+
+CREATE TABLE Branches (
+    branch_id      INT PRIMARY KEY AUTO_INCREMENT,
+    branch_name    VARCHAR(255) NOT NULL,
+    address        TEXT NOT NULL,
+    manager_id     INT NOT NULL,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (manager_id) REFERENCES Employees(employee_id) ON DELETE SET NULL
+);
+
+
+CREATE TABLE Employees (
+    employee_id    INT PRIMARY KEY AUTO_INCREMENT,
+    user_id        INT NOT NULL,
+    branch_id      INT NOT NULL,
+    position       ENUM('clerk', 'cashier', 'loan_officer', 'manager'),
+    salary         DECIMAL(10,2) NOT NULL,
+    status         ENUM('active', 'inactive') DEFAULT 'active',
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+    FOREIGN KEY (branch_id) REFERENCES Branches(branch_id) ON DELETE CASCADE
+);
+
+
