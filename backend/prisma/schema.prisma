@@ -86,10 +86,11 @@ model Transaction {
   amount           Decimal
   transaction_type TransactionType
   payment_method   PaymentMethod
-  status           TransactionStatus @default(pending)
+  status           TransactionStatus @default(pending) //remember to consider this default value
   created_at       DateTime @default(now())
   updated_at       DateTime? @updatedAt
   updated_by       Int? // ID of the user/admin who reversed/canceled the transaction
+  meta_info        Json? // <-- 🔥 Add this
 
   // Relations
   account Account @relation(fields: [account_id], references: [account_id], onDelete: SetNull) // SetNull instead of Cascade
@@ -138,7 +139,7 @@ enum AccountStatus {
   active
   inactive
   closed
-  progress
+  progress       //and one more suspended could also be there
 }
 
 enum LoanType {

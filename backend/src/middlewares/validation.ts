@@ -1,3 +1,10 @@
+// const schema = Joi.object({
+//   fullName: Joi.string().required().label('Full name'),
+//   email: Joi.string().email().required().label('Email address'),
+//   mobile: Joi.string().length(10).required().label('Mobile number'),
+//   role: Joi.string().valid('user', 'employee', 'manager').required().label('Role'),
+// }).messages(UserErrorMessages);
+
 import {
   PaymentMethod,
   TransactionType,
@@ -9,6 +16,13 @@ import {
   TransactionStatus,
 } from "@prisma/client";
 import Joi from "joi";
+import {
+  UserErrorMessages,
+  EmployeeErrorMessages,
+  BranchErrorMessages,
+  TransactionErrorMessages,
+  AccountErrorMessages,
+} from "../../Utils/ValidationErrorMessages";
 
 // TypeScript interfaces
 interface User {
@@ -24,10 +38,10 @@ interface User {
 interface Account {
   account_id?: number;
   user_id: number; // name of the account owner
-  account_type: "savings" | "checking" | "loan";
+  account_type: "savings" | "current" | "loan" | "fixed_deposit";
   balance: number;
   currency?: string;
-  status?: "active" | "inactive" | "suspended" | "closed";
+  status?: "active" | "inactive" | "closed" | "progress";
   created_at?: Date;
 }
 
@@ -46,8 +60,14 @@ interface Transaction {
     | "transfer"
     | "bill_payment"
     | "loan_payment";
-  payment_method: "cash" | "card" | "bank_transfer" | "mobile_wallet";
-  status: "pending" | "successful" | "failed";
+  payment_method:
+    | "cash"
+    | "card"
+    | "bank_transfer"
+    | "upi"
+    | "cheque"
+    | "auto_debit";
+  status: "pending" | "successful" | "failed" | "reversed";
   created_at: Date;
 }
 
@@ -88,7 +108,7 @@ const JoiUserSchema: Joi.ObjectSchema<User> = Joi.object({
   phone_number: Joi.string().length(10),
   role: Joi.valid(...Object.values(Role)),
   created_at: Joi.date().optional(),
-});
+}).messages(UserErrorMessages);
 
 const JoiAccountSchema: Joi.ObjectSchema<Account> = Joi.object({
   account_id: Joi.number().integer(),
@@ -104,26 +124,29 @@ const JoiAccountSchema: Joi.ObjectSchema<Account> = Joi.object({
   account_type: Joi.string()
     .valid(...Object.values(AccountType))
     .required(),
-  balance: Joi.alternatives().conditional("account_type", [
-    {
-      is: "savings",
-      then: Joi.number().precision(2).min(1000).required(),
-    },
-    {
-      is: "checking",
-      then: Joi.number().precision(2).min(0).default(0.0).required(),
-    },
-    {
-      is: "loan",
-      then: Joi.number().precision(2).max(0).default(0.0).required(),
-    },
-  ]),
+  balance: Joi.alternatives().conditional(Joi.ref("account_type"), {
+    switch: [
+      {
+        is: "savings",
+        then: Joi.number().precision(2).min(1000).required(),
+      },
+      {
+        is: "current",
+        then: Joi.number().precision(2).min(0).default(0.0).required(),
+      },
+      {
+        is: "loan",
+        then: Joi.number().precision(2).max(0).default(0.0).required(),
+      },
+    ],
+    otherwise: Joi.number().precision(2).required(), // Default case
+  }),
   currency: Joi.string().default("INR"),
   status: Joi.string()
     .valid(...Object.values(AccountStatus))
     .default("active"),
   created_at: Joi.date().default(() => new Date()),
-});
+}).messages(AccountErrorMessages);
 
 const JoiTransactionSchema: Joi.ObjectSchema<Transaction> = Joi.object({
   TransactionId: Joi.number().integer(),
@@ -133,76 +156,56 @@ const JoiTransactionSchema: Joi.ObjectSchema<Transaction> = Joi.object({
   biller_name: Joi.string().optional(),
   bill_account_no: Joi.string().optional(),
   loan_id: Joi.number().integer().optional(),
-  amount: Joi.alternatives().conditional("transaction_type", [
-    {
-      is: "deposit",
-      then: Joi.alternatives().conditional("payment_method", [
-        {
-          is: "upi",
-          then: Joi.number().precision(2).min(10).max(1000000).required(),
-        }, // UPI min ₹10
-        {
-          is: "cash",
-          then: Joi.number().precision(2).min(100).max(2000000).required(),
-        }, // Cash deposits
-        {
-          is: "cheque",
-          then: Joi.number().precision(2).min(500).max(10000000).required(),
-        }, // Cheque deposits
-        {
+  amount: Joi.alternatives().conditional(Joi.ref("transaction_type"), {
+    switch: [
+      {
+        is: "deposit",
+        then: Joi.alternatives().conditional(Joi.ref("payment_method"), {
+          switch: [
+            {
+              is: "upi",
+              then: Joi.number().precision(2).min(10).max(1000000).required(),
+            },
+            {
+              is: "cash",
+              then: Joi.number().precision(2).min(100).max(2000000).required(),
+            },
+            {
+              is: "cheque",
+              then: Joi.number().precision(2).min(500).max(10000000).required(),
+            },
+          ],
           otherwise: Joi.number().precision(2).min(100).max(1000000).required(),
-        }, // Default deposit limits
-      ]),
-    },
-    {
-      is: "withdrawal",
-      then: Joi.alternatives().conditional("payment_method", [
-        {
-          is: "cash",
-          then: Joi.number().precision(2).min(100).max(50000).required(),
-        }, // ATM/Bank Counter
-        {
-          is: "cheque",
-          then: Joi.number().precision(2).min(500).max(500000).required(),
-        }, // Cheque withdrawals
-        { otherwise: Joi.number().precision(2).min(100).max(50000).required() }, // Default withdrawal
-      ]),
-    },
-    {
-      is: "transfer",
-      then: Joi.alternatives().conditional("payment_method", [
-        {
-          is: "upi",
-          then: Joi.number().precision(2).min(1).max(500000).required(),
-        }, // UPI min ₹1
-        {
-          is: "transfer",
-          then: Joi.number().precision(2).min(500).max(10000000).required(),
-        }, // Bank transfer
-        {
-          otherwise: Joi.number().precision(2).min(500).max(500000).required(),
-        }, // Default transfer limits
-      ]),
-    },
-    {
-      is: "bill_payment",
-      then: Joi.number().precision(2).min(50).max(200000).required(),
-    },
-    {
-      is: "loan_payment",
-      then: Joi.number().precision(2).min(1000).max(1000000).required(),
-    },
-    {
-      is: "auto_debit",
-      then: Joi.number().precision(2).min(50).max(500000).required(), // Auto-debit limits
-    },
-  ]),
-
+        }),
+      },
+      {
+        is: "withdrawal",
+        then: Joi.alternatives().conditional(Joi.ref("payment_method"), {
+          switch: [
+            {
+              is: "cash",
+              then: Joi.number().precision(2).min(100).max(50000).required(),
+            },
+            {
+              is: "cheque",
+              then: Joi.number().precision(2).min(500).max(500000).required(),
+            },
+          ],
+          otherwise: Joi.number().precision(2).min(100).max(50000).required(),
+        }),
+      },
+      {
+        is: "transfer",
+        then: Joi.number().precision(2).min(500).max(10000000).required(),
+      },
+    ],
+    otherwise: Joi.number().precision(2).required(), // Default case
+  }),
   TransactionType: Joi.string().valid(...Object.values(TransactionType)),
   payment_method: Joi.string().valid(...Object.values(PaymentMethod)),
   status: Joi.string().valid(...Object.values(TransactionStatus)),
   created_at: Joi.date().default(() => new Date()),
-});
+}).messages(TransactionErrorMessages);
 
 const JoiLoanSchema: Joi.ObjectSchema<Loan> = Joi.object({
   loan_id: Joi.number().integer(),
@@ -239,7 +242,7 @@ const JoiEmployeeSchema: Joi.ObjectSchema<Employee> = Joi.object({
     .valid(...Object.values(EmployeeStatus))
     .default("active"),
   created_at: Joi.date().default(() => new Date()),
-});
+}).messages(EmployeeErrorMessages);
 
 const JoiBranchSchema: Joi.ObjectSchema<Branch> = Joi.object({
   branch_id: Joi.number().integer(),
@@ -247,7 +250,7 @@ const JoiBranchSchema: Joi.ObjectSchema<Branch> = Joi.object({
   address: Joi.string().required(),
   manager_id: Joi.number().integer().allow(null),
   created_at: Joi.date().default(() => new Date()),
-});
+}).messages(BranchErrorMessages);
 
 // Function to validate user data
 function validateUser(data: unknown) {
@@ -274,6 +277,44 @@ function validateAccount(data: unknown) {
       return null;
     });
 }
+
+const data = {
+  email: "invalid-email",
+  password_hash: "",
+};
+
+async function validateUserData() {
+  try {
+    const validatedUser = await JoiUserSchema.validateAsync(data, {
+      abortEarly: false,
+    }); // Collect all errors)
+    console.log("Valid user data:", validatedUser);
+  } catch (error: any) {
+    if (error.details) {
+      console.error(
+        "Validation Details:",
+        error.details.map((err: any) => err.message)
+      );
+    }
+  }
+}
+validateUserData();
+// Validation Details: [
+//   "email must be a valid email address",
+//   "password_hash is required"
+// ]
+
+
+// ✅ Example: Use custom messages manually in controller
+// If you want to return a manual error (e.g., based on some logic), you can just use your message map:
+// import { UserErrorMessages } from "../../Utils/ValidationErrorMessages";
+
+// if (!req.body.email) {
+//   return res.status(400).json({
+//     error: UserErrorMessages["any.required"].replace("{{#label}}", "Email address"),
+//   });
+// }
+
 
 export {
   JoiUserSchema,
