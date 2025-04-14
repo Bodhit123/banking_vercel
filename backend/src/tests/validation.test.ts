@@ -1,4 +1,4 @@
-import { validateAccount, validateUser } from "../middlewares/validation";
+import { validateAccount, validateUser } from "../Utils/validation";
 
 describe("Validation Tests", () => {
   test("User Validation", async () => {

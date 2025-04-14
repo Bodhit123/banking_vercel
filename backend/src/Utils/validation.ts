@@ -22,7 +22,7 @@ import {
   BranchErrorMessages,
   TransactionErrorMessages,
   AccountErrorMessages,
-} from "../../Utils/ValidationErrorMessages";
+} from "./ValidationErrorMessages";
 
 // TypeScript interfaces
 interface User {

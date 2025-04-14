@@ -8,7 +8,7 @@ datasource db {
 }
 
 model User {
-  user_id       Int       @id @default(autoincrement()) //get id and password from bank when we use online banking
+  user_id       Int       @id @default(autoincrement()) //get id and password from bank when we use online banking(or cif number)
   full_name     String
   email         String    @unique
   password_hash String                            
@@ -33,6 +33,7 @@ model Account {
   status         AccountStatus @default(active)
   created_at     DateTime      @default(now())
 
+  @@unique([user_id, account_type])
   user           User          @relation(fields: [user_id], references: [user_id], onDelete: SetNull) // SetNull instead of Cascade
   transactions   Transaction[] // Reference to transactions
 }
