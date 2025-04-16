@@ -6,6 +6,7 @@ import Joi from "joi";
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET as string; // Ensure JWT_SECRET is defined
+
 // Define the structure of the login request body
 interface LoginRequestBody {
   user_id: number;
@@ -13,20 +14,13 @@ interface LoginRequestBody {
 }
 
 // Joi validation schema for login
-const loginSchema = Joi.object<LoginRequestBody>({
+export const loginSchema = Joi.object<LoginRequestBody>({
   user_id: Joi.number().integer().required(),
   password: Joi.string().required(),
 });
 
 export const loginUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Validate request body
-    const { error } = loginSchema.validate(req.body);
-    if (error) {
-      res.status(400).json({ error: error.details[0].message });
-      return;
-    }
-
     const { user_id, password } = req.body as LoginRequestBody;
 
     // Step 1: Find the user
@@ -53,7 +47,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     };
 
     const token = jwt.sign(tokenPayload, JWT_SECRET, {
-      expiresIn: "1h",
+      expiresIn: "15m",
     });
 
     // Step 4: Send success response with minimal user info
