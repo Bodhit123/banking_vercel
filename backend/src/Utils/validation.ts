@@ -23,6 +23,7 @@ import {
   TransactionErrorMessages,
   AccountErrorMessages,
 } from "./ValidationErrorMessages";
+import prisma from "../db/prisma";
 
 // TypeScript interfaces
 interface User {
@@ -304,7 +305,6 @@ validateUserData();
 //   "password_hash is required"
 // ]
 
-
 // ✅ Example: Use custom messages manually in controller
 // If you want to return a manual error (e.g., based on some logic), you can just use your message map:
 // import { UserErrorMessages } from "../../Utils/ValidationErrorMessages";
@@ -314,7 +314,6 @@ validateUserData();
 //     error: UserErrorMessages["any.required"].replace("{{#label}}", "Email address"),
 //   });
 // }
-
 
 export {
   JoiUserSchema,
